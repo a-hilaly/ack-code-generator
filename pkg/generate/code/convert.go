@@ -64,7 +64,9 @@ func Convert(
 		hubImportAlias,
 		dst.Names.Camel,
 	)
+	fmt.Println("helllooooooooo")
 
+	fmt.Println("computing the delta")
 	deltas, err := multiversion.ComputeCRDFieldDeltas(src, dst)
 	if err != nil {
 		msg := fmt.Sprintf("delta computation error: %v", err)

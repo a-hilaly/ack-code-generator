@@ -158,6 +158,15 @@ func ComputeFieldDeltas(
 				continue
 			}
 
+			if srcField.IsReference() {
+				fmt.Println("Skipping reference field", srcField.Names.Camel)
+				continue
+			}
+			if dstField.IsReference() {
+				fmt.Println("Skipping reference field", dstField.Names.Camel)
+				continue
+			}
+
 			equalShapes, _ := AreEqualShapes(srcField.ShapeRef.Shape, dstField.ShapeRef.Shape, true)
 			if equalShapes {
 				// if the fields have equal names and types the change is intact

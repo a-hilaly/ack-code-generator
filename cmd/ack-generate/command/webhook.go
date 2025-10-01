@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws-controllers-k8s/code-generator/pkg/generate/ack"
 	ackgenerate "github.com/aws-controllers-k8s/code-generator/pkg/generate/ack"
+	ackmetadata "github.com/aws-controllers-k8s/code-generator/pkg/metadata"
 	"github.com/aws-controllers-k8s/code-generator/pkg/model/multiversion"
 )
 
@@ -64,38 +65,52 @@ func generateWebhooks(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	apiInfos := map[string]multiversion.APIInfo{}
+	apiInfos := map[string]ackmetadata.APIInfo{}
 	for _, f := range files {
-		metadata, err := ack.LoadGenerationMetadata(apisVersionPath, f.Name())
+		metadata, err := ackmetadata.LoadGenerationMetadata(apisVersionPath, f.Name())
 		if err != nil {
 			return err
 		}
-		apiInfos[f.Name()] = multiversion.APIInfo{
-			Status:              multiversion.APIStatusUnknown,
+		apiInfos[f.Name()] = ackmetadata.APIInfo{
+			Status:              ackmetadata.APIStatusUnknown,
 			AWSSDKVersion:       metadata.AWSSDKGoVersion,
 			GeneratorConfigPath: filepath.Join(apisVersionPath, f.Name(), metadata.GeneratorConfigInfo.OriginalFileName),
 		}
 	}
 
+	metadataAPIVersions := []ackmetadata.ServiceVersion{}
+	for v := range apiInfos {
+		metadataAPIVersions = append(metadataAPIVersions, ackmetadata.ServiceVersion{
+			APIVersion: v,
+			Status:     apiInfos[v].Status,
+		})
+	}
+
 	if optHubVersion == "" {
-		latestAPIVersion, err := getLatestAPIVersion()
+		latestAPIVersion, err := getLatestAPIVersion(metadataAPIVersions)
 		if err != nil {
 			return err
 		}
 		optHubVersion = latestAPIVersion
 	}
 
+	fmt.Println("using md file", optMetadataConfigPath)
 	mgr, err := multiversion.NewAPIVersionManager(
 		optCacheDir,
+		optMetadataConfigPath,
 		svcAlias,
 		optHubVersion,
 		apiInfos,
 		ack.DefaultConfig,
 	)
+	fmt.Println("got it")
+
 	if err != nil {
+		fmt.Println("could not create API version manager:", err)
 		return err
 	}
 
+	fmt.Println("Generating webhooks for", svcAlias)
 	if optEnableConversionWebhook {
 		ts, err := ackgenerate.ConversionWebhooks(mgr, optTemplateDirs)
 		if err != nil {
@@ -123,4 +138,14 @@ func generateWebhooks(cmd *cobra.Command, args []string) error {
 		}
 	}
 	return nil
+}
+
+func ensureDir(dir string) (bool, error) {
+	if _, err := ioutil.ReadDir(dir); err != nil {
+		if err = ioutil.WriteFile(dir, nil, 0755); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
 }

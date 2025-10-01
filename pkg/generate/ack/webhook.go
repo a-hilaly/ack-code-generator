@@ -15,6 +15,7 @@ package ack
 
 import (
 	"fmt"
+	"runtime/debug"
 	ttpl "text/template"
 
 	"github.com/aws-controllers-k8s/code-generator/pkg/generate/code"
@@ -30,8 +31,7 @@ var (
 	}
 	webhookCopyPaths = []string{}
 	webhooksFuncMap  = ttpl.FuncMap{
-		"GoCodeConvert": func(
-			src *ackmodel.CRD,
+		"GoCodeConvert": func(src,
 			dst *ackmodel.CRD,
 			convertingToHub bool,
 			hubImportPath string,
@@ -39,6 +39,16 @@ var (
 			targetVarName string,
 			indentLevel int,
 		) string {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Panic in GoCodeConvert: %v\n", r)
+					fmt.Printf("src: %+v\n", src)
+					fmt.Printf("dst: %+v\n", dst)
+					debug.PrintStack()
+					// Re-panic or return error string
+					panic(r)
+				}
+			}()
 			return code.Convert(src, dst, convertingToHub, hubImportPath, sourceVarName, targetVarName, indentLevel)
 		},
 	}
@@ -56,11 +66,15 @@ func ConversionWebhooks(
 		webhookCopyPaths,
 		webhooksFuncMap,
 	)
+	fmt.Println("setting tmpls")
 	hubVersion := mgr.GetHubVersion()
 	hubModel, err := mgr.GetModel(hubVersion)
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("hub model")
+	fmt.Println("hello", hubModel == nil)
 
 	hubMetaVars := hubModel.MetaVars()
 	hubCRDs, err := hubModel.GetCRDs()

@@ -19,6 +19,7 @@ const (
 	APIStatusAvailable  APIStatus = "available"
 	APIStatusRemoved              = "removed"
 	APIStatusDeprecated           = "deprecated"
+	APIStatusUnknown              = "unknown"
 )
 
 // APIInfo contains information related a specific apiVersion.

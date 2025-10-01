@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"strings"
 
-	awssdkmodel "github.com/aws/aws-sdk-go/private/model/api"
+	awssdkmodel "github.com/aws-controllers-k8s/code-generator/pkg/api"
 
 	"github.com/aws-controllers-k8s/code-generator/pkg/model"
 	ackmodel "github.com/aws-controllers-k8s/code-generator/pkg/model"
 	"github.com/aws-controllers-k8s/code-generator/pkg/model/multiversion"
-	"github.com/aws-controllers-k8s/code-generator/pkg/names"
+	"github.com/aws-controllers-k8s/pkg/names"
 )
 
 // New initialise and returns a new converter.
@@ -100,7 +100,7 @@ func (c converter) GenerateFieldsDeltasCode(
 			multiversion.FieldChangeTypeShapeChanged,
 			multiversion.FieldChangeTypeShapeChangedFromStringToSecret,
 			multiversion.FieldChangeTypeShapeChangedFromSecretToString:
-			fmt.Println("Not implemented ChangeType in generate.code.generateFieldsDeltasCode")
+			fmt.Println(delta.ChangeType, "Not implemented ChangeType in generate.code.generateFieldsDeltasCode")
 		case multiversion.FieldChangeTypeUnknown:
 			panic("Received unknown ChangeType in generate.code.generateFieldsDeltasCode")
 		default:
@@ -128,14 +128,14 @@ func (c converter) getGoType(original string) string {
 //
 // Output code will look something like this:
 //
-//   elementCopy := &v1alpha2.WebhookFilter{}
-//   if element != nil {
-//   	webhookFilterCopy := &v1alpha2.WebhookFilter{}
-//   	webhookFilterCopy.ExcludeMatchedPattern = element.ExcludeMatchedPattern
-//   	webhookFilterCopy.Pattern = element.Pattern
-//   	webhookFilterCopy.Type = element.Type
-//   	elementCopy = webhookFilterCopy
-//   }
+//	elementCopy := &v1alpha2.WebhookFilter{}
+//	if element != nil {
+//		webhookFilterCopy := &v1alpha2.WebhookFilter{}
+//		webhookFilterCopy.ExcludeMatchedPattern = element.ExcludeMatchedPattern
+//		webhookFilterCopy.Pattern = element.Pattern
+//		webhookFilterCopy.Type = element.Type
+//		elementCopy = webhookFilterCopy
+//	}
 func (c converter) copyStruct(shape *awssdkmodel.Shape) string {
 	out := ""
 	indent := strings.Repeat("\t", c.indentLevel)
@@ -226,7 +226,7 @@ func (c converter) copyStruct(shape *awssdkmodel.Shape) string {
 //
 // Output code will look something like this:
 //
-//   dst.Status.CreatedAt = src.Status.CreatedAt
+//	dst.Status.CreatedAt = src.Status.CreatedAt
 func (c converter) copyScalar(shape *awssdkmodel.Shape) string {
 	out := ""
 	indent := strings.Repeat("\t", c.indentLevel)
@@ -249,38 +249,38 @@ func (c converter) copyScalar(shape *awssdkmodel.Shape) string {
 //
 // Output code will look something like this:
 //
-//  if src.Spec.APIStages != nil {
-//  	listOfAPIStageCopy := make([]*APIStage, 0, len(src.Spec.APIStages))
-//  	for i, element := range src.Spec.APIStages {
-//  		_ = i // non-used value guard.
-//  		elementCopy := &APIStage{}
-//  		if element != nil {
-//  			apiStageCopy := &APIStage{}
-//  			apiStageCopy.APIID = element.APIID
-//  			apiStageCopy.Stage = element.Stage
-//  			if element.Throttle != nil {
-//  				mapOfAPIStageThrottleSettingsCopy := make(map[string]*ThrottleSettings, len(element.Throttle))
-//  				for k, v := range element.Throttle {
-//  					elementCopy := &ThrottleSettings{}
-//  					if v != nil {
-//  						throttleSettingsCopy := &ThrottleSettings{}
-//  						throttleSettingsCopy.BurstLimit = v.BurstLimit
-//  						throttleSettingsCopy.RateLimit = v.RateLimit
-//  						elementCopy = throttleSettingsCopy
-//  					}
+//	if src.Spec.APIStages != nil {
+//		listOfAPIStageCopy := make([]*APIStage, 0, len(src.Spec.APIStages))
+//		for i, element := range src.Spec.APIStages {
+//			_ = i // non-used value guard.
+//			elementCopy := &APIStage{}
+//			if element != nil {
+//				apiStageCopy := &APIStage{}
+//				apiStageCopy.APIID = element.APIID
+//				apiStageCopy.Stage = element.Stage
+//				if element.Throttle != nil {
+//					mapOfAPIStageThrottleSettingsCopy := make(map[string]*ThrottleSettings, len(element.Throttle))
+//					for k, v := range element.Throttle {
+//						elementCopy := &ThrottleSettings{}
+//						if v != nil {
+//							throttleSettingsCopy := &ThrottleSettings{}
+//							throttleSettingsCopy.BurstLimit = v.BurstLimit
+//							throttleSettingsCopy.RateLimit = v.RateLimit
+//							elementCopy = throttleSettingsCopy
+//						}
 //
-//  					mapOfAPIStageThrottleSettingsCopy[k] = elementCopy
-//  				}
-//  				apiStageCopy.Throttle = mapOfAPIStageThrottleSettingsCopy
-//  			}
+//						mapOfAPIStageThrottleSettingsCopy[k] = elementCopy
+//					}
+//					apiStageCopy.Throttle = mapOfAPIStageThrottleSettingsCopy
+//				}
 //
-//  			elementCopy = apiStageCopy
-//  		}
+//				elementCopy = apiStageCopy
+//			}
 //
-//  		listOfAPIStageCopy = append(listOfAPIStageCopy, elementCopy)
-//  	}
-//  	dst.Spec.APIStages = listOfAPIStageCopy
-//  }
+//			listOfAPIStageCopy = append(listOfAPIStageCopy, elementCopy)
+//		}
+//		dst.Spec.APIStages = listOfAPIStageCopy
+//	}
 func (c converter) copyList(shape *awssdkmodel.Shape) string {
 	indent := strings.Repeat("\t", c.indentLevel)
 	// if a slice is only made of builtin types we just copy src to dst
@@ -410,24 +410,24 @@ func (c converter) copyList(shape *awssdkmodel.Shape) string {
 //
 // Output code will look something like this:
 //
-//   if src.Spec.RouteSettings != nil {
-//   	routeSettingsMapCopy := make(map[string]*v1alpha2.RouteSettings, len(src.Spec.RouteSettings))
-//   	for k, v := range src.Spec.RouteSettings {
-//   		elementCopy := &v1alpha2.RouteSettings{}
-//   		if v != nil {
-//   			routeSettingsCopy := &v1alpha2.RouteSettings{}
-//   			routeSettingsCopy.DataTraceEnabled = v.DataTraceEnabled
-//   			routeSettingsCopy.DetailedMetricsEnabled = v.DetailedMetricsEnabled
-//   			routeSettingsCopy.LoggingLevel = v.LoggingLevel
-//   			routeSettingsCopy.ThrottlingBurstLimit = v.ThrottlingBurstLimit
-//   			routeSettingsCopy.ThrottlingRateLimit = v.ThrottlingRateLimit
-//   			elementCopy = routeSettingsCopy
-//   		}
+//	if src.Spec.RouteSettings != nil {
+//		routeSettingsMapCopy := make(map[string]*v1alpha2.RouteSettings, len(src.Spec.RouteSettings))
+//		for k, v := range src.Spec.RouteSettings {
+//			elementCopy := &v1alpha2.RouteSettings{}
+//			if v != nil {
+//				routeSettingsCopy := &v1alpha2.RouteSettings{}
+//				routeSettingsCopy.DataTraceEnabled = v.DataTraceEnabled
+//				routeSettingsCopy.DetailedMetricsEnabled = v.DetailedMetricsEnabled
+//				routeSettingsCopy.LoggingLevel = v.LoggingLevel
+//				routeSettingsCopy.ThrottlingBurstLimit = v.ThrottlingBurstLimit
+//				routeSettingsCopy.ThrottlingRateLimit = v.ThrottlingRateLimit
+//				elementCopy = routeSettingsCopy
+//			}
 //
-//   		routeSettingsMapCopy[k] = elementCopy
-//   	}
-//   	dst.Spec.RouteSettings = routeSettingsMapCopy
-//   }
+//			routeSettingsMapCopy[k] = elementCopy
+//		}
+//		dst.Spec.RouteSettings = routeSettingsMapCopy
+//	}
 func (c converter) copyMap(shape *awssdkmodel.Shape) string {
 	indent := strings.Repeat("\t", c.indentLevel)
 	// if a map is only made of builtin types we just copy src to dst
@@ -553,7 +553,7 @@ func (c converter) copyMap(shape *awssdkmodel.Shape) string {
 //
 // Output code that looks like this:
 //
-//   dst.Spec.ProjectName = src.Spec.ProjectName
+//	dst.Spec.ProjectName = src.Spec.ProjectName
 func (c converter) copyField(from, to *model.Field) string {
 	// if a field is not renamed, from and to have the same name
 	// so the name doesn't impact much the code generation
@@ -591,7 +591,7 @@ func (c converter) copyField(from, to *model.Field) string {
 //
 // Output code will look something like this:
 //
-//   imageScanningConfigurationCopy := &v2.ImageScanningConfiguration{}
+//	imageScanningConfigurationCopy := &v2.ImageScanningConfiguration{}
 func (c converter) newShapeTypeInstance(
 	shape *awssdkmodel.Shape,
 	allocationVarName string,

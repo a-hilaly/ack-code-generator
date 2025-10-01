@@ -14,6 +14,7 @@
 package multiversion
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -24,7 +25,6 @@ import (
 	ackmetadata "github.com/aws-controllers-k8s/code-generator/pkg/metadata"
 	ackmodel "github.com/aws-controllers-k8s/code-generator/pkg/model"
 	acksdk "github.com/aws-controllers-k8s/code-generator/pkg/sdk"
-	"github.com/aws-controllers-k8s/code-generator/pkg/util"
 )
 
 var (
@@ -56,6 +56,7 @@ func NewAPIVersionManager(
 	apisInfo map[string]ackmetadata.APIInfo,
 	defaultConfig ackgenconfig.Config,
 ) (*APIVersionManager, error) {
+	fmt.Println("hola")
 	if len(apisInfo) == 0 {
 		return nil, fmt.Errorf("empty apisInfo")
 	}
@@ -66,11 +67,6 @@ func NewAPIVersionManager(
 	}
 
 	spokeVersions := []string{}
-
-	gitRepo, err := util.LoadRepository(sdkCacheDir)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read sdk git repository: %v", err)
-	}
 
 	// create model for each non-deprecated api version
 	models := map[string]*ackmodel.Model{}
@@ -124,7 +120,6 @@ func NewAPIVersionManager(
 
 	sort.Strings(spokeVersions)
 	model := &APIVersionManager{
-		gitRepo:       gitRepo,
 		metadata:      metadata,
 		hubVersion:    hubVersion,
 		spokeVersions: spokeVersions,
@@ -132,13 +127,20 @@ func NewAPIVersionManager(
 		models:        models,
 	}
 
+	fmt.Println("hello")
 	return model, nil
 }
 
 // GetModel returns the model of a given api version.
 func (m *APIVersionManager) GetModel(apiVersion string) (*ackmodel.Model, error) {
 	if err := m.VerifyAPIVersions(apiVersion); err != nil {
+		fmt.Println("cannot verify api version", apiVersion)
 		return nil, fmt.Errorf("cannot verify API version %s: %v", apiVersion, err)
+	}
+	fmt.Println("getting model for '" + apiVersion + "'")
+	fmt.Println("len models", len(m.models))
+	for k := range m.models {
+		fmt.Println("model key", k)
 	}
 	return m.models[apiVersion], nil
 }
@@ -219,5 +221,7 @@ func (m *APIVersionManager) CompareAPIVersions(srcAPIVersion, dstAPIVersion stri
 		}
 		apiDeltas[crd.Names.Camel] = crdDelta
 	}
+	b, _ := json.MarshalIndent(apiDeltas, " ", "   ")
+	fmt.Println(string(b))
 	return apiDeltas, nil
 }

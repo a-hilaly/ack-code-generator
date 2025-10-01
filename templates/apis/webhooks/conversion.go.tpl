@@ -12,7 +12,7 @@ import (
     ctrlrt "sigs.k8s.io/controller-runtime"
     ackrtwh "github.com/aws-controllers-k8s/runtime/pkg/webhook"
 
-    {{ $hubImportAlias }} "github.com/aws-controllers-k8s/{{ .ServiceIDClean }}-controller/apis/{{ .HubVersion }}"
+    {{ $hubImportAlias }} "github.com/aws-controllers-k8s/{{ .ControllerName }}-controller/apis/{{ .HubVersion }}"
 {{- end }}
 )
 
