@@ -14,6 +14,7 @@
 package code_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -604,4 +605,99 @@ func TestCompareResource_MemoryDB_User(t *testing.T) {
 			crd.Config(), crd, "delta", "a.ko", "b.ko", 1,
 		),
 	)
+}
+
+func TestCompareResource_Lambda_Function_WithCompareOptions(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	g := testutil.NewModelForServiceWithOptions(t, "lambda", &testutil.TestingModelOptions{
+		GeneratorConfigFile: "generator-with-compare-options.yaml",
+	})
+
+	crd := testutil.GetCRDByName(t, g, "Function")
+	require.NotNil(crd)
+
+	output := code.CompareResource(
+		crd.Config(), crd, "delta", "a.ko", "b.ko", 1,
+	)
+
+	// Test 1: Layers slice comparison
+	// SliceStringPEqual already does unordered comparison (sorts first)
+	assert.Contains(output, "ackcompare.SliceStringPEqual(a.ko.Spec.Layers, b.ko.Spec.Layers)")
+
+	// Test 2: IAM policy comparison for Role
+	// Should use IAMPolicyDocumentEqual instead of direct string comparison
+	assert.Contains(output, "ackcompare.IAMPolicyDocumentEqual(*a.ko.Spec.Role, *b.ko.Spec.Role)")
+
+	// Test 3: IgnoreIfAnnotation for MemorySize
+	// Should wrap comparison with annotation check
+	assert.Contains(output, `ackcompare.HasAnnotation(a.ko, "lambda.amazonaws.com/managed-by", "external-controller")`)
+}
+
+func TestCompareResource_Lambda_Function_UnorderedSlice(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	g := testutil.NewModelForServiceWithOptions(t, "lambda", &testutil.TestingModelOptions{
+		GeneratorConfigFile: "generator-with-compare-options.yaml",
+	})
+
+	crd := testutil.GetCRDByName(t, g, "Function")
+	require.NotNil(crd)
+
+	output := code.CompareResource(
+		crd.Config(), crd, "delta", "a.ko", "b.ko", 1,
+	)
+
+	// SliceStringPEqual already does unordered comparison (sorts first).
+	// The `unordered: true` config documents intent but doesn't change behavior for string slices.
+	assert.Contains(output, "SliceStringPEqual(a.ko.Spec.Layers, b.ko.Spec.Layers)",
+		"Layers should use SliceStringPEqual (which is already unordered)")
+}
+
+func TestCompareResource_Lambda_Function_IAMPolicy(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	g := testutil.NewModelForServiceWithOptions(t, "lambda", &testutil.TestingModelOptions{
+		GeneratorConfigFile: "generator-with-compare-options.yaml",
+	})
+
+	crd := testutil.GetCRDByName(t, g, "Function")
+	require.NotNil(crd)
+
+	output := code.CompareResource(
+		crd.Config(), crd, "delta", "a.ko", "b.ko", 1,
+	)
+
+	// Role field should use IAM policy comparison with the Role field
+	assert.Contains(output, "IAMPolicyDocumentEqual(*a.ko.Spec.Role, *b.ko.Spec.Role)",
+		"Role should use IAM policy comparison")
+}
+
+func TestCompareResource_Lambda_Function_IgnoreIfAnnotation(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	g := testutil.NewModelForServiceWithOptions(t, "lambda", &testutil.TestingModelOptions{
+		GeneratorConfigFile: "generator-with-compare-options.yaml",
+	})
+
+	crd := testutil.GetCRDByName(t, g, "Function")
+	require.NotNil(crd)
+
+	output := code.CompareResource(
+		crd.Config(), crd, "delta", "a.ko", "b.ko", 1,
+	)
+
+	// MemorySize should have annotation check wrapper
+	assert.Contains(output, "HasAnnotation")
+	assert.Contains(output, "lambda.amazonaws.com/managed-by")
+	assert.Contains(output, "external-controller")
+
+	// The pattern should be: if !HasAnnotation(...) { ... MemorySize comparison ... }
+	annotationIdx := strings.Index(output, "HasAnnotation")
+	memorySizeIdx := strings.Index(output, "a.ko.Spec.MemorySize")
+	assert.Greater(memorySizeIdx, annotationIdx, "MemorySize comparison should come after annotation check")
 }

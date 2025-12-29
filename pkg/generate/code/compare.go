@@ -140,6 +140,22 @@ func CompareResource(
 			cfg.PrefixConfig.SpecField+"."+specField.Names.Camel, ".",
 		)
 
+		// Check if we need to wrap the comparison in an annotation check
+		hasAnnotationCheck := compareConfig != nil && compareConfig.IgnoreIfAnnotation != nil
+		currentIndentLevel := indentLevel
+		if hasAnnotationCheck {
+			// if !ackcompare.HasAnnotation(a.ko, "key", "value") {
+			out += fmt.Sprintf(
+				"%sif !ackcompare.HasAnnotation(%s, %q, %q) {\n",
+				indent,
+				firstResVarName,
+				compareConfig.IgnoreIfAnnotation.Key,
+				compareConfig.IgnoreIfAnnotation.Value,
+			)
+			currentIndentLevel++
+			indent = strings.Repeat("\t", currentIndentLevel)
+		}
+
 		// Use equality.Semantic.Equalities.DeepEqual for comparing Reference fields because
 		// some of reference fields are list of pointer to structs and
 		// DeepEqual is easy way to compare them
@@ -150,13 +166,19 @@ func CompareResource(
 				deltaVarName, fieldPath, firstResAdaptedVarName,
 				secondResAdaptedVarName)
 			out += fmt.Sprintf("%s}\n", indent)
+			if hasAnnotationCheck {
+				out += fmt.Sprintf("%s}\n", strings.Repeat("\t", indentLevel))
+			}
 			continue
 		}
 
 		// Use a special comparison model for tags, since they need to be
 		// converted into the common ACK tag type before doing a map delta
 		if tagField != nil && specField == tagField {
-			out += compareTags(deltaVarName, firstResAdaptedVarName, secondResAdaptedVarName, fieldPath, indentLevel)
+			out += compareTags(deltaVarName, firstResAdaptedVarName, secondResAdaptedVarName, fieldPath, currentIndentLevel)
+			if hasAnnotationCheck {
+				out += fmt.Sprintf("%s}\n", strings.Repeat("\t", indentLevel))
+			}
 			continue
 		}
 
@@ -172,7 +194,7 @@ func CompareResource(
 			fieldPath,
 			firstResAdaptedVarName,
 			secondResAdaptedVarName,
-			indentLevel,
+			currentIndentLevel,
 		)
 		out += fastComparisonOutput
 
@@ -190,7 +212,7 @@ func CompareResource(
 				firstResAdaptedVarName,
 				secondResAdaptedVarName,
 				fieldPath,
-				indentLevel+1,
+				currentIndentLevel+1,
 			)
 		case "list":
 			// Returns Go code that compares all the elements of the slice fields...
@@ -202,7 +224,7 @@ func CompareResource(
 				firstResAdaptedVarName,
 				secondResAdaptedVarName,
 				fieldPath,
-				indentLevel+1,
+				currentIndentLevel+1,
 			)
 		case "map":
 			// Returns Go code that compares all the elements of the map fields...
@@ -214,7 +236,7 @@ func CompareResource(
 				firstResAdaptedVarName,
 				secondResAdaptedVarName,
 				fieldPath,
-				indentLevel+1,
+				currentIndentLevel+1,
 			)
 		default:
 			//   if *a.ko.Spec.Name != *b.ko.Spec.Name) {
@@ -227,7 +249,7 @@ func CompareResource(
 				firstResAdaptedVarName,
 				secondResAdaptedVarName,
 				fieldPath,
-				indentLevel+1,
+				currentIndentLevel+1,
 			)
 		}
 		if needToCloseBlock {
@@ -235,6 +257,10 @@ func CompareResource(
 			out += fmt.Sprintf(
 				"%s}\n", indent,
 			)
+		}
+		if hasAnnotationCheck {
+			// Close the annotation check block
+			out += fmt.Sprintf("%s}\n", strings.Repeat("\t", indentLevel))
 		}
 	}
 	return out
@@ -309,6 +335,13 @@ func compareNil(
 //	if *a.ko.Spec.Name != *b.ko.Spec.Name) {
 //	  delta.Add("Spec.Name", a.ko.Spec.Name, b.ko.Spec.Name)
 //	}
+//
+// When compareConfig.IsIAMPolicy is true, the output code will use semantic
+// IAM policy comparison that parses and normalizes policy documents:
+//
+//	if !ackcompare.IAMPolicyDocumentEqual(*a.ko.Spec.PolicyDocument, *b.ko.Spec.PolicyDocument) {
+//	  delta.Add("Spec.PolicyDocument", a.ko.Spec.PolicyDocument, b.ko.Spec.PolicyDocument)
+//	}
 func compareScalar(
 	// struct informing code generator how to compare the field values
 	compareConfig *ackgenconfig.CompareFieldConfig,
@@ -336,13 +369,29 @@ func compareScalar(
 	out := ""
 	indent := strings.Repeat("\t", indentLevel)
 
+	isIAMPolicy := compareConfig != nil && compareConfig.IsIAMPolicy
+
 	switch shape.Type {
-	case "boolean", "string", "character", "byte", "short", "integer", "long", "float", "double":
+	case "boolean", "character", "byte", "short", "integer", "long", "float", "double":
 		// if *a.ko.Spec.Name != *b.ko.Spec.Name {
 		out += fmt.Sprintf(
 			"%sif *%s != *%s {\n",
 			indent, firstResVarName, secondResVarName,
 		)
+	case "string":
+		if isIAMPolicy {
+			// if !ackcompare.IAMPolicyDocumentEqual(*a.ko.Spec.PolicyDocument, *b.ko.Spec.PolicyDocument) {
+			out += fmt.Sprintf(
+				"%sif !ackcompare.IAMPolicyDocumentEqual(*%s, *%s) {\n",
+				indent, firstResVarName, secondResVarName,
+			)
+		} else {
+			// if *a.ko.Spec.Name != *b.ko.Spec.Name {
+			out += fmt.Sprintf(
+				"%sif *%s != *%s {\n",
+				indent, firstResVarName, secondResVarName,
+			)
+		}
 	case "timestamp":
 		// if !a.ko.Spec.CreatedAt.Equal(b.ko.Spec.CreatedAt) {
 		out += fmt.Sprintf(
@@ -451,6 +500,13 @@ func compareMap(
 //	if !ackcompare.SliceStringPEqual(a.ko.Spec.SecurityGroupIDs, b.ko.Spec.SecurityGroupIDs) {
 //	  delta.Add("Spec.SecurityGroupIDs", a.ko.Spec.SecurityGroupIDs, b.ko.Spec.SecurityGroupIDs)
 //	}
+//
+// When compareConfig.Unordered is true, the output code will use unordered
+// comparison functions that ignore element order:
+//
+//	if !ackcompare.SliceStringPEqualUnordered(a.ko.Spec.SecurityGroupIDs, b.ko.Spec.SecurityGroupIDs) {
+//	  delta.Add("Spec.SecurityGroupIDs", a.ko.Spec.SecurityGroupIDs, b.ko.Spec.SecurityGroupIDs)
+//	}
 func compareSlice(
 	cfg *ackgenconfig.Config,
 	r *model.CRD,
@@ -481,9 +537,15 @@ func compareSlice(
 	indent := strings.Repeat("\t", indentLevel)
 
 	elemType := shape.MemberRef.Shape.Type
+	// NOTE: The `unordered` config option is available but SliceStringPEqual
+	// already does unordered comparison (sorts first), so it's currently a no-op
+	// for string slices. It documents intent and may be used for struct slices
+	// in the future.
+	// unordered := compareConfig != nil && compareConfig.Unordered
 
 	switch elemType {
 	case "string":
+		// SliceStringPEqual already does unordered comparison (sorts first).
 		// if !ackcompare.SliceStringPEqual(a.ko.Spec.SecurityGroupIDs, b.ko.Spec.SecurityGroupIDs) {
 		out += fmt.Sprintf(
 			"%sif !ackcompare.SliceStringPEqual(%s, %s) {\n",

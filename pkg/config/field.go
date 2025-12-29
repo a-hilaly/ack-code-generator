@@ -261,6 +261,16 @@ func (s *SetFieldConfig) IsAllIgnored() bool {
 	return s.IgnoreResourceSetter() && s.IgnoreSDKSetter()
 }
 
+// IgnoreIfAnnotationConfig specifies an annotation key/value pair that, when
+// present on the resource, causes comparison of this field to be skipped.
+// This is useful for fields managed by external controllers (e.g., cluster autoscaler).
+type IgnoreIfAnnotationConfig struct {
+	// Key is the annotation key to check
+	Key string `json:"key"`
+	// Value is the annotation value that must match for comparison to be skipped
+	Value string `json:"value"`
+}
+
 // CompareFieldConfig informs the code generator how to compare two values of a
 // field
 type CompareFieldConfig struct {
@@ -270,6 +280,17 @@ type CompareFieldConfig struct {
 	// NilEqualsZeroValue indicates a nil pointer and zero-value pointed-to
 	// value should be considered equal for the purposes of comparison
 	NilEqualsZeroValue bool `json:"nil_equals_zero_value"`
+	// Unordered indicates that a slice or map field should be compared without
+	// considering the order of elements. For slices, elements are matched by
+	// value. For maps, this is the default behavior.
+	Unordered bool `json:"unordered"`
+	// IsIAMPolicy indicates that the field contains an IAM policy document
+	// that should be compared semantically (parsing JSON, normalizing structure)
+	// rather than as a raw string.
+	IsIAMPolicy bool `json:"is_iam_policy"`
+	// IgnoreIfAnnotation specifies an annotation key/value pair that, when
+	// present on the resource, causes comparison of this field to be skipped.
+	IgnoreIfAnnotation *IgnoreIfAnnotationConfig `json:"ignore_if_annotation,omitempty"`
 }
 
 // PrintFieldConfig instructs the code generator how to handle kubebuilder:printcolumn
