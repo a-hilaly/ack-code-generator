@@ -14,9 +14,12 @@
 package ack
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	ttpl "text/template"
+	"time"
 
 	"github.com/aws-controllers-k8s/code-generator/pkg/generate/templateset"
 	ackmodel "github.com/aws-controllers-k8s/code-generator/pkg/model"
@@ -47,19 +50,30 @@ func APIs(
 	m *ackmodel.Model,
 	templateBasePaths []string,
 ) (*templateset.TemplateSet, error) {
+	totalStart := time.Now()
+
+	enumStart := time.Now()
 	enumDefs, err := m.GetEnumDefs()
 	if err != nil {
 		return nil, err
 	}
+	fmt.Fprintf(os.Stderr, "  [timing] GetEnumDefs (%d enums): %s\n", len(enumDefs), time.Since(enumStart))
+
+	typeStart := time.Now()
 	typeDefs, err := m.GetTypeDefs()
 	if err != nil {
 		return nil, err
 	}
+	fmt.Fprintf(os.Stderr, "  [timing] GetTypeDefs (%d types): %s\n", len(typeDefs), time.Since(typeStart))
+
+	crdStart := time.Now()
 	crds, err := m.GetCRDs()
 	if err != nil {
 		return nil, err
 	}
+	fmt.Fprintf(os.Stderr, "  [timing] GetCRDs (%d CRDs): %s\n", len(crds), time.Since(crdStart))
 
+	tplStart := time.Now()
 	ts := templateset.New(
 		templateBasePaths,
 		apisIncludePaths,
@@ -91,6 +105,8 @@ func APIs(
 			return nil, err
 		}
 	}
+	fmt.Fprintf(os.Stderr, "  [timing] template setup: %s\n", time.Since(tplStart))
+	fmt.Fprintf(os.Stderr, "  [timing] APIs() total: %s\n", time.Since(totalStart))
 	return ts, nil
 }
 

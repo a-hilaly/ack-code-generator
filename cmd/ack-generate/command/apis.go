@@ -17,8 +17,10 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -85,6 +87,7 @@ func saveGeneratedMetadata(cmd *cobra.Command, args []string) error {
 // generateAPIs generates the Go files for each resource in the AWS service
 // API.
 func generateAPIs(cmd *cobra.Command, args []string) error {
+	cmdStart := time.Now()
 	if len(args) != 1 {
 		return fmt.Errorf("please specify the service alias for the AWS service API to generate")
 	}
@@ -92,6 +95,9 @@ func generateAPIs(cmd *cobra.Command, args []string) error {
 	if optOutputPath == "" {
 		optOutputPath = filepath.Join(optServicesDir, svcAlias)
 	}
+
+	fmt.Fprintf(os.Stderr, "\n[apis] EnsureRepo...\n")
+	repoStart := time.Now()
 	ctx, cancel := sdk.ContextWithSigterm(context.Background())
 	defer cancel()
 	sdkDirPath, err := sdk.EnsureRepo(ctx, optCacheDir, optRefreshCache, optAWSSDKGoVersion, optOutputPath)
@@ -99,6 +105,10 @@ func generateAPIs(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	sdkDir = sdkDirPath
+	fmt.Fprintf(os.Stderr, "[apis] EnsureRepo: %s\n", time.Since(repoStart))
+
+	fmt.Fprintf(os.Stderr, "\n[apis] loadModel...\n")
+	modelStart := time.Now()
 	metadata, err := ackmetadata.NewServiceMetadata(optMetadataConfigPath)
 	if err != nil {
 		return err
@@ -107,15 +117,24 @@ func generateAPIs(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "[apis] loadModel: %s\n", time.Since(modelStart))
+
+	fmt.Fprintf(os.Stderr, "\n[apis] APIs() template setup...\n")
+	apisStart := time.Now()
 	ts, err := ackgenerate.APIs(m, optTemplateDirs)
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "[apis] APIs() template setup: %s\n", time.Since(apisStart))
 
+	fmt.Fprintf(os.Stderr, "\n[apis] template execution...\n")
+	execStart := time.Now()
 	if err = ts.Execute(); err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "[apis] template execution: %s\n", time.Since(execStart))
 
+	writeStart := time.Now()
 	apisVersionPath = filepath.Join(optOutputPath, "apis", optGenVersion)
 	for path, contents := range ts.Executed() {
 		if optDryRun {
@@ -132,5 +151,7 @@ func generateAPIs(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
+	fmt.Fprintf(os.Stderr, "[apis] file writing (%d files): %s\n", len(ts.Executed()), time.Since(writeStart))
+	fmt.Fprintf(os.Stderr, "[apis] TOTAL: %s\n\n", time.Since(cmdStart))
 	return nil
 }

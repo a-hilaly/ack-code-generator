@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	awssdkmodel "github.com/aws-controllers-k8s/code-generator/pkg/api"
 	"github.com/aws-controllers-k8s/pkg/names"
@@ -41,34 +42,45 @@ type ShapeRef struct {
 // LoadAPI loads the V2 api model file, and later translates that
 // structure into the v1 API structure.
 func LoadAPI(modelPath string) (map[string]*awssdkmodel.API, error) {
+	totalStart := time.Now()
+
 	// Read the json file
+	readStart := time.Now()
 	file, err := os.ReadFile(modelPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file: %v", err)
 	}
+	fmt.Fprintf(os.Stderr, "    [timing] read model JSON (%d KB): %s\n", len(file)/1024, time.Since(readStart))
 
 	// unmarshal the file
+	unmarshalStart := time.Now()
 	var customAPI API
 	err = json.Unmarshal(file, &customAPI)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling file: %v", err)
 	}
+	fmt.Fprintf(os.Stderr, "    [timing] JSON unmarshal (%d shapes): %s\n", len(customAPI.Shapes), time.Since(unmarshalStart))
 
 	// build V1 API structure
+	buildStart := time.Now()
 	newApi, serviceAlias, err := buildAPI(customAPI.Shapes)
 	if err != nil {
 		return nil, fmt.Errorf("error building api: %v", err)
 	}
+	fmt.Fprintf(os.Stderr, "    [timing] buildAPI (v2->v1 conversion): %s\n", time.Since(buildStart))
 
 	// Setup the API: ensures the shapes of refs (memberRef, keyRef) are in the right place
 	// and documentation is clear among the shapes
+	setupStart := time.Now()
 	err = newApi.Setup()
 	if err != nil {
 		return nil, fmt.Errorf("error setting up api: %v", err)
 	}
+	fmt.Fprintf(os.Stderr, "    [timing] API.Setup(): %s\n", time.Since(setupStart))
 
 	cleanUpBadDefaultValueAssignment(newApi)
 
+	fmt.Fprintf(os.Stderr, "    [timing] LoadAPI total: %s\n", time.Since(totalStart))
 	return map[string]*awssdkmodel.API{
 		serviceAlias: newApi,
 	}, nil

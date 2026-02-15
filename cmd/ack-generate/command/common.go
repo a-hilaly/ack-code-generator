@@ -15,8 +15,10 @@ package command
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
+	"time"
 
 	k8sversion "k8s.io/apimachinery/pkg/version"
 
@@ -40,21 +42,27 @@ func loadModelWithLatestAPIVersion(svcAlias string, metadata *ackmetadata.Servic
 // loadModel finds the AWS SDK for a given service alias and creates a new model
 // with the given API version.
 func loadModel(svcAlias string, apiVersion string, apiGroup string, defaultCfg ackgenconfig.Config) (*ackmodel.Model, error) {
+	totalStart := time.Now()
+
+	cfgStart := time.Now()
 	cfg, err := ackgenconfig.New(optGeneratorConfigPath, defaultCfg)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Fprintf(os.Stderr, "  [timing] config loading: %s\n", time.Since(cfgStart))
 
 	modelName := strings.ToLower(cfg.SDKNames.Model)
 	if modelName == "" {
 		modelName = svcAlias
 	}
 
+	apiStart := time.Now()
 	sdkHelper := acksdk.NewHelper(sdkDir, cfg)
 	sdkAPI, err := sdkHelper.API(modelName)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Fprintf(os.Stderr, "  [timing] SDK API loading (model=%s): %s\n", modelName, time.Since(apiStart))
 
 	if apiGroup != "" {
 		sdkAPI.APIGroupSuffix = apiGroup
@@ -65,12 +73,15 @@ func loadModel(svcAlias string, apiVersion string, apiGroup string, defaultCfg a
 		return nil, err
 	}
 
+	modelStart := time.Now()
 	m, err := ackmodel.New(
 		sdkAPI, svcAlias, apiVersion, cfg, docCfg,
 	)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Fprintf(os.Stderr, "  [timing] model.New(): %s\n", time.Since(modelStart))
+	fmt.Fprintf(os.Stderr, "  [timing] loadModel total: %s\n", time.Since(totalStart))
 	return m, nil
 }
 

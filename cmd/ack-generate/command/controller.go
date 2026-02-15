@@ -17,8 +17,10 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -45,6 +47,7 @@ func init() {
 
 // generateController generates the Go files for a service controller
 func generateController(cmd *cobra.Command, args []string) error {
+	cmdStart := time.Now()
 	if len(args) != 1 {
 		return fmt.Errorf("please specify the service alias for the AWS service API to generate")
 	}
@@ -53,6 +56,8 @@ func generateController(cmd *cobra.Command, args []string) error {
 		optOutputPath = filepath.Join(optServicesDir, svcAlias)
 	}
 
+	fmt.Fprintf(os.Stderr, "\n[controller] EnsureRepo...\n")
+	repoStart := time.Now()
 	ctx, cancel := sdk.ContextWithSigterm(context.Background())
 	defer cancel()
 	sdkDirPath, err := sdk.EnsureRepo(ctx, optCacheDir, optRefreshCache, optAWSSDKGoVersion, optOutputPath)
@@ -60,6 +65,10 @@ func generateController(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	sdkDir = sdkDirPath
+	fmt.Fprintf(os.Stderr, "[controller] EnsureRepo: %s\n", time.Since(repoStart))
+
+	fmt.Fprintf(os.Stderr, "\n[controller] loadModel...\n")
+	modelStart := time.Now()
 	metadata, err := ackmetadata.NewServiceMetadata(optMetadataConfigPath)
 	if err != nil {
 		return err
@@ -68,19 +77,29 @@ func generateController(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "[controller] loadModel: %s\n", time.Since(modelStart))
+
 	serviceAccountName, err := getServiceAccountName()
 	if err != nil {
 		return err
 	}
+
+	fmt.Fprintf(os.Stderr, "\n[controller] Controller() template setup...\n")
+	ctrlStart := time.Now()
 	ts, err := ackgenerate.Controller(m, optTemplateDirs, serviceAccountName)
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "[controller] Controller() template setup: %s\n", time.Since(ctrlStart))
 
+	fmt.Fprintf(os.Stderr, "\n[controller] template execution...\n")
+	execStart := time.Now()
 	if err = ts.Execute(); err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "[controller] template execution: %s\n", time.Since(execStart))
 
+	writeStart := time.Now()
 	for path, contents := range ts.Executed() {
 		if optDryRun {
 			fmt.Printf("============================= %s ======================================\n", path)
@@ -96,5 +115,7 @@ func generateController(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
+	fmt.Fprintf(os.Stderr, "[controller] file writing (%d files): %s\n", len(ts.Executed()), time.Since(writeStart))
+	fmt.Fprintf(os.Stderr, "[controller] TOTAL: %s\n\n", time.Since(cmdStart))
 	return nil
 }
